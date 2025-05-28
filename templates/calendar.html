@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Календарь рисков{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Календарь рисков</h1>
+
+<!-- Фильтры -->
+<div class="mb-3">
+    <label class="form-label">Фильтр по статусу</label>
+    <div class="d-flex gap-3">
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="filterNew" checked>
+            <label class="form-check-label" for="filterNew">Новые</label>
+        </div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="filterActive" checked>
+            <label class="form-check-label" for="filterActive">В работе</label>
+        </div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="filterClosed" checked>
+            <label class="form-check-label" for="filterClosed">Отработанные</label>
+        </div>
+    </div>
+</div>
+
+<!-- Календарь -->
+<div class="card mb-4 shadow-sm border-0">
+    <div class="card-body">
+        <div id="calendar" style="min-height: 600px;"
+             data-risks='{{ risks|tojson|safe }}'
+             data-role="{{ session.role }}"
+             data-events-url="{{ url_for('calendar_events') }}"
+             data-statuses='{{ ["Новый", "Взято в работу", "Отработан"]|tojson|safe }}'>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно -->
+<div class="modal fade" id="eventDetailsModal" tabindex="-1" aria-labelledby="eventTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="eventTitle"></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body" id="eventDetails"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<!-- Подключаем FullCalendar v6 -->
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.9/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.9/locales/ru.global.min.js"></script>
+
+<!-- Ваш кастомный JS -->
+<script nonce="{{ csp_nonce() }}">
+document.addEventListener('DOMContentLoaded', () => {
+    // Проверка загрузки FullCalendar
+    if (typeof FullCalendar === 'undefined') {
+        console.error('FullCalendar не загружен!');
+        return;
+    }
+
+    const calendarEl = document.getElementById('calendar');
+    if (!calendarEl) return;
+
+    // Безопасный парсинг данных
+    const safeParse = (json) => {
+        try {
+            return JSON.parse(json);
+        } catch (e) {
+            console.error("Ошибка парсинга JSON:", e);
+            return [];
+        }
+    };
+
+    const riskData = safeParse(calendarEl.dataset.risks || '[]');
+    const userRole = calendarEl.dataset.role || '';
+    const eventsUrl = calendarEl.dataset.eventsUrl;
+    const statuses = safeParse(calendarEl.dataset.statuses || '[]');
+
+    // Инициализация календаря
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'ru',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        events: eventsUrl,
+        eventClick: async function(info) {
+            const event = info.event;
+            const modal = new bootstrap.Modal(document.getElementById('eventDetailsModal'));
+            const modalTitle = document.getElementById('eventTitle');
+            const modalBody = document.getElementById('eventDetails');
+
+            modalTitle.textContent = event.title;
+
+            try {
+                const response = await fetch(`/risk_detail/${event.extendedProps.riskId}`);
+                if (response.ok) {
+                    modalBody.innerHTML = await response.text();
+                } else {
+                    modalBody.innerHTML = `<p>Ошибка загрузки данных: ${response.status}</p>`;
+                }
+            } catch (error) {
+                modalBody.innerHTML = `<p>Ошибка: ${error.message}</p>`;
+            }
+
+            modal.show();
+        }
+    });
+
+    calendar.render();
+
+    // Обработчики фильтров
+    document.getElementById('filterNew').addEventListener('change', () => {
+        calendar.refetchEvents();
+    });
+    document.getElementById('filterActive').addEventListener('change', () => {
+        calendar.refetchEvents();
+    });
+    document.getElementById('filterClosed').addEventListener('change', () => {
+        calendar.refetchEvents();
+    });
+});
+</script>
+{% endblock %}

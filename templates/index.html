@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+{% block title %}Главная{% endblock %}
+
+{% block content %}
+<!-- Форма фильтрации -->
+<form method="GET" class="mb-4">
+    <div class="row g-3 align-items-end">
+        <!-- Сортировка -->
+        <div class="col-md-3">
+            <label class="form-label">Сортировать по:</label>
+            <select name="sort" class="form-select">
+                <option value="date_desc" {% if request.args.sor =='date_desc' %}selected="selected"{% endif %}>Дата (новые)</option>
+                <option value="date_asc" {% if request.args.sort=='date_asc' %}selected="selected"{% endif %}>Дата (старые)</option>
+                <option value="criticality" {% if request.args.sort =='criticality' %}selected="selected"{% endif %}>Критичность</option>
+            </select>
+        </div>
+
+        <!-- Фильтр по статусу -->
+        <div class="col-md-2">
+            <label class="form-label">Статус</label>
+            <select name="status" class="form-select">
+                <option value="">Все</option>
+                {% for status in statuses %}
+                <option value="{{ status }}" {% if  request.args.status == status %}selected="selected"{% endif %}>
+                    {{ status }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Фильтр по критичности -->
+        <div class="col-md-2">
+            <label class="form-label">Критичность</label>
+            <select name="criticality" class="form-select">
+                <option value="">Все</option>
+                {% for level in criticality_levels %}
+                <option value="{{ level }}" {% if request.args.criticality ==level %}selected="selected"{% endif %}>
+                    {{ level }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Фильтр по муниципалитету -->
+        <div class="col-md-3">
+            <label class="form-label">Муниципалитет</label>
+            <select name="municipality" class="form-select">
+                <option value="">Все</option>
+                {% for muni in municipalities %}
+                <option value="{{ muni }}" {% if request.args.municipality == muni %}selected="selected"{% endif %}>
+                    {{ muni }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Кнопки управления -->
+        <div class="col-md-2 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary w-100">Применить</button>
+            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary ms-2">Сбросить</a>
+        </div>
+    </div>
+</form>
+
+<!-- Лента рисков -->
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Лента рисков</h2>
+        {% if session.role in ['admin', 'omsu'] %}
+        <a href="{{ url_for('add_risk') }}" class="btn btn-success">
+            <i class="bi bi-plus-lg"></i> Добавить риск
+        </a>
+        {% endif %}
+    </div>
+
+    {% if not risks %}
+    <div class="alert alert-info">Риски не найдены. Попробуйте изменить параметры фильтрации.</div>
+    {% endif %}
+
+    <div class="row g-4">
+        {% for risk in risks %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-header d-flex justify-content-between align-items-center" style="background-color: {{ get_risk_color(risk.criticality) }};">
+                    <span class="fw-bold text-white">{{ risk.title }}</span>
+                    <span class="badge text-white" style="background-color: {{ get_risk_color(risk.status) }};">{{ risk.status }}</span>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <p><strong>Категория:</strong> {{ risk.category }}</p>
+                        <p><strong>Муниципалитет:</strong> {{ risk.municipality }}</p>
+                        <p><strong>Дата добавления:</strong> {{ risk.date_added }}</p>
+                        <p><strong>Срок:</strong>
+                            {% if risk.deadline_value and risk.deadline_unit %}
+                                {{ risk.deadline_value }} {{ risk.deadline_unit }}
+                            {% else %}
+                                Не указан
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="{{ url_for('risk_detail', index=loop.index0) }}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-info-circle"></i> Подробности
+                        </a>
+                        {% if session.role in ['admin', 'omsu'] and risk.status != 'Отработан' %}
+                            <a href="{{ url_for('edit_risk', index=loop.index0) }}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-pencil"></i> Редактировать
+                            </a>
+                        {% endif %}
+                        {% if session.role == 'admin' and risk.status != 'Отработан' %}
+                            <a href="{{ url_for('close_risk', index=loop.index0) }}"
+                               class="btn btn-sm btn-success"
+                               onclick="return confirm('Закрыть риск?')">
+                                Закрыть
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if pagination and pagination.pages > 1 %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if pagination.has_prev %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('index', page=pagination.prev_num, **request.args) }}">Назад</a>
+            </li>
+            {% endif %}
+            {% for page in pagination.iter_pages() %}
+            <li class="page-item {% if page == pagination.page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('index', page=page, **request.args) }}">{{ page }}</a>
+            </li>
+            {% endfor %}
+            {% if pagination.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('index', page=pagination.next_num, **request.args) }}">Вперед</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Карточка риска - {{ risk.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center bg-white">
+            <h2 class="risk-title mb-0">{{ risk.title }}</h2>
+            <span class="badge rounded-pill" style="background-color: {{ get_risk_color(risk.criticality) }}; color: white;">
+                {{ risk.criticality }}
+            </span>
+        </div>
+
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="risk-section"><strong>Источник:</strong> {{ risk.source }}</div>
+                    <div class="risk-section"><strong>Дата создания:</strong> {{ risk.date_added }}</div>
+                    
+                    {% if risk.deadline %}
+                        <div class="risk-section"><strong>Срок отработки:</strong> {{ risk.deadline }}</div>
+                    {% else %}
+                        <div class="risk-section"><strong>Срок отработки:</strong> Не указан</div>
+                    {% endif %}
+                    
+                    <div class="risk-section"><strong>Повторяющийся:</strong> {{ "Да" if risk.is_repeating else "Нет" }}</div>
+                    <div class="risk-section"><strong>Описание:</strong><br>{{ risk.description or 'Не указано' }}</div>
+                    <div class="risk-section"><strong>Обоснование:</strong><br>{{ risk.justification or 'Не указано' }}</div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="risk-section"><strong>Категория:</strong> {{ risk.category }}</div>
+                    <div class="risk-section"><strong>МО (ОМСУ):</strong> {{ risk.omsu }}</div>
+                    <div class="risk-section"><strong>ОИГВ:</strong> {{ risk.oigv }}</div>
+                    <div class="risk-section"><strong>Заместитель:</strong> {{ risk.deputy }}</div>
+                    <div class="risk-section"><strong>Муниципалитет:</strong> {{ risk.municipality }}</div>
+                    <div class="risk-section"><strong>Статус:</strong> {{ risk.status }}</div>
+                </div>
+            </div>
+
+            <!-- Комментарии -->
+            {% if risk.comments %}
+                <hr class="my-4">
+                <h4 class="mb-3">Комментарии</h4>
+                <div class="mb-4">
+                    {% for comment in risk.comments %}
+                        <div class="card mb-2">
+                            <div class="card-body p-2">
+                                <p class="mb-1">{{ comment.text }}</p>
+                                <small class="text-muted">
+                                    {{ comment.author }} — {{ comment.timestamp }}
+                                </small>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <!-- Вложения -->
+            {% if risk.attachments %}
+                <h4 class="mb-3">Прикрепленные файлы</h4>
+                <ul class="list-group list-group-flush mb-4">
+                    {% for att in risk.attachments %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <a href="{{ att.url }}" target="_blank">{{ att.filename }}</a>
+                            <span class="badge bg-secondary">PDF</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+            
+            <!-- Форма комментариев -->
+            {% if session.role in ['admin', 'omsu', 'oigv', 'governor'] %}
+                <hr class="my-4">
+                <h4 class="mb-3">Добавить комментарий</h4>
+                <form method="POST" action="{{ url_for('add_comment', index=index) }}">
+                    <div class="mb-3">
+                        <textarea name="comment_text" class="form-control" rows="3" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Отправить</button>
+                </form>
+            {% endif %}
+            
+            <!-- Форма загрузки файла -->
+            {% if session.role in ['admin', 'omsu', 'oigv', 'governor'] %}
+                <hr class="my-4">
+                <h4 class="mb-3">Прикрепить файл</h4>
+                <form method="POST" action="{{ url_for('upload_attachment', index=index) }}" enctype="multipart/form-data">
+                    <div class="input-group mb-3">
+                        <input type="file" name="attachment" class="form-control" required>
+                        <button class="btn btn-outline-secondary" type="submit">Загрузить</button>
+                    </div>
+                </form>
+            {% endif %}
+            
+            <!-- Кнопки действий -->
+            <hr class="my-4">
+            <div class="d-flex flex-wrap gap-2">
+                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Назад
+                </a>
+
+                {% if session.role in ['admin', 'omsu'] and risk.status != 'Отработан' %}
+                    <a href="{{ url_for('edit_risk', index=index) }}" class="btn btn-primary">
+                        <i class="bi bi-pencil"></i> Редактировать
+                    </a>
+                {% endif %}
+
+                {% if session.role in ['admin', 'governor', 'omsu', 'oigv'] %}
+                    {% if risk.status == 'Новый' %}
+                        <a href="{{ url_for('take_risk', index=index) }}" class="btn btn-warning">
+                            <i class="bi bi-check"></i> Взято в работу
+                        </a>
+                    {% elif risk.status == 'Взято в работу' %}
+                        <a href="{{ url_for('complete_risk', index=index) }}" class="btn btn-success">
+                            <i class="bi bi-check-circle"></i> Отработано
+                        </a>
+                    {% endif %}
+                {% endif %}
+
+                {% if session.role == 'admin' and risk.status != 'Отработан' %}
+                    <a href="{{ url_for('close_risk', index=index) }}" class="btn btn-danger" onclick="return confirm('Закрыть риск?')">
+                        <i class="bi bi-lock"></i> Закрыть риск
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
